@@ -47,7 +47,8 @@ rule mason_variator:
 
 rule mason_simulator:
     input:
-        ref="resources/genome.fasta",
+        ref="resources/chrI.genome.fasta",
+        fai="resources/chrI.genome.fasta.fai",
         vars="results/simulated.variants.vcf"
     output:
         "results/simulated.{depth}x.reads.1.fq.gz",
@@ -69,3 +70,6 @@ rule fasta_index:
         "{prefix}.fasta.fai"
     wrapper:
         "0.63.0/bio/samtools/faidx"
+
+
+        
