@@ -1,0 +1,71 @@
+rule all:
+    input:
+        expand("results/simulated.{depth}x.reads.1.fq.gz", depth=[5, 10, 20, 30, 40])
+
+
+rule get_genome:
+    output:
+        "resources/genome.fasta"
+    params:
+        species="saccharomyces_cerevisiae",
+        datatype="dna",
+        build="R64-1-1",
+        release="100"
+    log:
+        "logs/get-genome.log"
+    cache: True  # save space and time with between workflow caching (see docs)
+    wrapper:
+        "0.63.0/bio/reference/ensembl-sequence"
+
+
+rule constrain_genome:
+    input:
+        fa="resources/genome.fasta",
+        fai="resources/genome.fasta.fai"
+    output:
+        "resources/chrI.genome.fasta"
+    log:
+        "logs/constrain-genome.log"
+    conda:
+        "envs/samtools.yaml"
+    shell:
+        "samtools faidx {input.fa} I > {output} 2> {log}"
+
+
+rule mason_variator:
+    input:
+        fa="resources/chrI.genome.fasta",
+        fai="resources/chrI.genome.fasta.fai"
+    output:
+        "results/simulated.variants.vcf",
+    conda:
+        "envs/mason.yaml"
+    log:
+        "logs/mason/variator.log"
+    shell:
+        "mason_variator --sv-inversion-rate 0.0001 --sv-duplication-rate 0.0001 -ir {input.fa} -ov {output} 2> {log}"
+
+rule mason_simulator:
+    input:
+        ref="resources/genome.fasta",
+        vars="results/simulated.variants.vcf"
+    output:
+        "results/simulated.{depth}x.reads.1.fq.gz",
+        "results/simulated.{depth}x.reads.2.fq.gz"
+    params:
+        n_reads=lambda w: 230218 * int(w.depth)
+    conda:
+        "envs/mason.yaml"
+    log:
+        "logs/mason/simulator.{depth}x.log"
+    shell:
+        "mason_simulator -ir {input.ref} -n {params.n_reads} -iv {input.vars} -o {output[0]} -or {output[1]} 2> {log}"
+
+
+rule fasta_index:
+    input:
+        "{prefix}.fasta"
+    output:
+        "{prefix}.fasta.fai"
+    wrapper:
+        "0.63.0/bio/samtools/faidx"
