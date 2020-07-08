@@ -126,7 +126,7 @@ rule varlociraptor_preprocess:
     log:
         "logs/varlociraptor/preprocess/{depth}x.log"
     shell:
-        "varlociraptor preprocess variants {input.fa} --candidates {input.vcf} --bam {input.bam} --output {output}"
+        "varlociraptor preprocess variants {input.fa} --candidates {input.vcf} --bam {input.bam} --output {output} 2> {log}"
 
 
 rule varlociraptor_testcase:
