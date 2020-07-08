@@ -95,15 +95,23 @@ rule map_reads:
     output:
         "results/mapped/{depth}x.sorted.bam"
     log:
-        "logs/bwa_mem/{sample}.log"
+        "logs/bwa_mem/{depth}.log"
     params:
         index=lambda w, input: os.path.splitext(input.idx[0])[0],
-        extra=get_read_group,
         sort="samtools",
         sort_order="coordinate"
     threads: 8
     wrapper:
         "0.56.0/bio/bwa/mem"
+
+
+rule samtools_index:
+    input:
+        "results/mapped/{depth}x.sorted.bam"
+    output:
+        "results/mapped/{depth}x.sorted.bam.bai"
+    wrapper:
+        "0.63.0/bio/samtools/index"
 
         
 rule varlociraptor_preprocess:
@@ -112,12 +120,13 @@ rule varlociraptor_preprocess:
         fa="resources/chrI.genome.fasta",
         fai="resources/chrI.genome.fasta.fai",
         bam="results/mapped/{depth}x.sorted.bam",
+        bai="results/mapped/{depth}x.sorted.bam.bai"
     output:
         "results/varlociraptor/preprocess/{depth}x.bcf"
     log:
         "logs/varlociraptor/preprocess/{depth}x.log"
     shell:
-        "varlociraptor preprocess variants {input.fa} --candidates {input.vcf} --bam {input.bam} --output {output.bcf}"
+        "varlociraptor preprocess variants {input.fa} --candidates {input.vcf} --bam {input.bam} --output {output}"
 
 
 rule varlociraptor_testcase:
@@ -130,8 +139,9 @@ rule varlociraptor_testcase:
         "logs/varlociraptor/testcase/{chrom}:{pos}.{depth}x.log"
     shell:
         "varlociraptor call variants "
-        "--testcase-locus {wildcards.chrom}:{wildcards.pos} 
+        "--testcase-locus {wildcards.chrom}:{wildcards.pos} "
         "--testcase-prefix {output} "
-        "--observations simulated={input.obs} "
+        "generic "
+        "--obs simulated={input.obs} "
         "--scenario {input.scenario} "
         "2> {log}"
