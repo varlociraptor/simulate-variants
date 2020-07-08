@@ -1,6 +1,6 @@
 rule all:
     input:
-        expand("results/simulated.{depth}x.reads.1.fq.gz", depth=[5, 10, 20, 30, 40])
+        expand("results/mapped/{depth}x.sorted.bam", depth=[5, 10, 20, 30, 40])
 
 
 rule get_genome:
@@ -72,4 +72,66 @@ rule fasta_index:
         "0.63.0/bio/samtools/faidx"
 
 
+rule bwa_index:
+    input:
+        "resources/chrI.genome.fasta"
+    output:
+        multiext("resources/chrI.genome.fasta", ".amb", ".ann", ".bwt", ".pac", ".sa")
+    log:
+        "logs/bwa_index.log"
+    resources:
+        mem_mb=369000
+    wrapper:
+        "0.59.2/bio/bwa/index"
+
+
+rule map_reads:
+    input:
+        reads=[
+            "results/simulated.{depth}x.reads.1.fq.gz",
+            "results/simulated.{depth}x.reads.2.fq.gz"
+        ],
+        idx=rules.bwa_index.output,
+    output:
+        "results/mapped/{depth}x.sorted.bam"
+    log:
+        "logs/bwa_mem/{sample}.log"
+    params:
+        index=lambda w, input: os.path.splitext(input.idx[0])[0],
+        extra=get_read_group,
+        sort="samtools",
+        sort_order="coordinate"
+    threads: 8
+    wrapper:
+        "0.56.0/bio/bwa/mem"
+
         
+rule varlociraptor_preprocess:
+    input:
+        vcf="results/simulated.variants.vcf",
+        fa="resources/chrI.genome.fasta",
+        fai="resources/chrI.genome.fasta.fai",
+        bam="results/mapped/{depth}x.sorted.bam",
+    output:
+        "results/varlociraptor/preprocess/{depth}x.bcf"
+    log:
+        "logs/varlociraptor/preprocess/{depth}x.log"
+    shell:
+        "varlociraptor preprocess variants {input.fa} --candidates {input.vcf} --bam {input.bam} --output {output.bcf}"
+
+
+rule varlociraptor_testcase:
+    input:
+        obs="results/varlociraptor/preprocess/{depth}x.bcf",
+        scenario="resources/scenario.yaml"
+    output:
+        directory("resources/testcases/{chrom}:{pos}.{depth}x")
+    log:
+        "logs/varlociraptor/testcase/{chrom}:{pos}.{depth}x.log"
+    shell:
+        "varlociraptor call variants "
+        "--testcase-locus {wildcards.chrom}:{wildcards.pos} 
+        "--testcase-prefix {output} "
+        "--observations simulated={input.obs} "
+        "--scenario {input.scenario} "
+        "2> {log}"
